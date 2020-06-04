@@ -9,9 +9,10 @@ import Key from 'mobiledoc-kit/utils/key';
 import TextInputHandler from 'mobiledoc-kit/editor/text-input-handler';
 import SelectionManager from 'mobiledoc-kit/editor/selection-manager';
 import Browser from 'mobiledoc-kit/utils/browser';
+import TextParser from '../parsers/text';
 
 const ELEMENT_EVENT_TYPES = [
-  'keydown', 'keyup', 'cut', 'copy', 'paste', 'keypress', 'drop'
+  'keydown', 'keyup', 'cut', 'copy', 'paste', 'keypress', 'drop', 'compositionstart', 'compositionend'
 ];
 
 export default class EventManager {
@@ -20,6 +21,7 @@ export default class EventManager {
     this.logger = editor.loggerFor('event-manager');
     this._textInputHandler = new TextInputHandler(editor);
     this._listeners = [];
+    this._isComposing = false;
     this.modifierKeys = {
       shift: false
     };
@@ -139,6 +141,9 @@ export default class EventManager {
     let { editor, _textInputHandler } = this;
     if (!editor.hasCursor()) { return; }
 
+    //const isImeEvent = event.keyCode === 229;
+    //if (isImeEvent) { return; }
+
     let key = Key.fromEvent(event);
     if (!key.isPrintable()) {
       return;
@@ -153,6 +158,7 @@ export default class EventManager {
     let { editor } = this;
     if (!editor.hasCursor()) { return; }
     if (!editor.isEditable) { return; }
+    if (this._isComposing) { return; }
 
     let key = Key.fromEvent(event);
     this._updateModifiersFromKey(key, {isDown:true});
@@ -166,6 +172,10 @@ export default class EventManager {
     let range = editor.range;
 
     switch(true) {
+      // Ignore IME
+      case event.isComposing || key.isIME(): {
+        break;
+      }
       // FIXME This should be restricted to only card/atom boundaries
       case key.isHorizontalArrowWithoutModifiersOtherThanShift(): {
         let newRange;
@@ -208,6 +218,43 @@ export default class EventManager {
     if (!editor.hasCursor()) { return; }
     let key = Key.fromEvent(event);
     this._updateModifiersFromKey(key, {isDown:false});
+  }
+
+  compositionstart(event) {
+    event.preventDefault();
+    this._isComposing = true;
+
+    let { editor } = this;
+
+    editor._mutationHandler.stopObserving();
+    this._selectionManager.stop();
+
+    if (editor.post.isBlank) {
+      editor._insertEmptyMarkupSectionAtCursor();
+    }
+
+    this._editorRangeOffset = editor.range.head.offset;
+  }
+
+  compositionend(event) {
+    event.preventDefault();
+    this._isComposing = false;
+
+    let { editor } = this;
+    let { builder, _parserPlugins: plugins } = editor;
+    let parser = new TextParser(builder, {plugins});
+    let post = parser.parse(event.data);
+
+    let position = editor.range.head;
+    position.offset = this._editorRangeOffset;
+
+    editor.run(postEditor => {
+      let nextPosition = postEditor.insertPost(position, post);
+      postEditor.setRange(nextPosition);
+    });
+
+    this.editor._mutationHandler.startObserving();
+    this._selectionManager.start();
   }
 
   cut(event) {
