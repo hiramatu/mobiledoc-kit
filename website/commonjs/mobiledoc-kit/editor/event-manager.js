@@ -20,7 +20,9 @@ var _editorSelectionManager = require('../editor/selection-manager');
 
 var _utilsBrowser = require('../utils/browser');
 
-var ELEMENT_EVENT_TYPES = ['keydown', 'keyup', 'cut', 'copy', 'paste', 'keypress', 'drop'];
+var _parsersText = require('../parsers/text');
+
+var ELEMENT_EVENT_TYPES = ['keydown', 'keyup', 'cut', 'copy', 'paste', 'keypress', 'drop', 'compositionstart', 'compositionend'];
 
 var EventManager = (function () {
   function EventManager(editor) {
@@ -30,6 +32,7 @@ var EventManager = (function () {
     this.logger = editor.loggerFor('event-manager');
     this._textInputHandler = new _editorTextInputHandler['default'](editor);
     this._listeners = [];
+    this._isComposing = false;
     this.modifierKeys = {
       shift: false
     };
@@ -190,6 +193,9 @@ var EventManager = (function () {
         return;
       }
 
+      //const isImeEvent = event.keyCode === 229;
+      //if (isImeEvent) { return; }
+
       var key = _utilsKey['default'].fromEvent(event);
       if (!key.isPrintable()) {
         return;
@@ -210,6 +216,9 @@ var EventManager = (function () {
       if (!editor.isEditable) {
         return;
       }
+      if (this._isComposing) {
+        return;
+      }
 
       var key = _utilsKey['default'].fromEvent(event);
       this._updateModifiersFromKey(key, { isDown: true });
@@ -225,6 +234,11 @@ var EventManager = (function () {
       var range = editor.range;
 
       switch (true) {
+        // Ignore IME
+        case event.isComposing || key.isIME():
+          {
+            break;
+          }
         // FIXME This should be restricted to only card/atom boundaries
         case key.isHorizontalArrowWithoutModifiersOtherThanShift():
           {
@@ -274,6 +288,47 @@ var EventManager = (function () {
       }
       var key = _utilsKey['default'].fromEvent(event);
       this._updateModifiersFromKey(key, { isDown: false });
+    }
+  }, {
+    key: 'compositionstart',
+    value: function compositionstart(event) {
+      event.preventDefault();
+      this._isComposing = true;
+
+      var editor = this.editor;
+
+      editor._mutationHandler.stopObserving();
+      this._selectionManager.stop();
+
+      if (editor.post.isBlank) {
+        editor._insertEmptyMarkupSectionAtCursor();
+      }
+
+      this._editorRangeOffset = editor.range.head.offset;
+    }
+  }, {
+    key: 'compositionend',
+    value: function compositionend(event) {
+      event.preventDefault();
+      this._isComposing = false;
+
+      var editor = this.editor;
+      var builder = editor.builder;
+      var plugins = editor._parserPlugins;
+
+      var parser = new _parsersText['default'](builder, { plugins: plugins });
+      var post = parser.parse(event.data);
+
+      var position = editor.range.head;
+      position.offset = this._editorRangeOffset;
+
+      editor.run(function (postEditor) {
+        var nextPosition = postEditor.insertPost(position, post);
+        postEditor.setRange(nextPosition);
+      });
+
+      this.editor._mutationHandler.startObserving();
+      this._selectionManager.start();
     }
   }, {
     key: 'cut',

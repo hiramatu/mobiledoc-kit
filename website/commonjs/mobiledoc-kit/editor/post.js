@@ -33,6 +33,17 @@ function isListSectionTagName(tagName) {
   return tagName === 'ul' || tagName === 'ol';
 }
 
+function shrinkRange(range) {
+  var head = range.head;
+  var tail = range.tail;
+
+  if (tail.offset === 0 && head.section !== tail.section) {
+    range.tail = new _utilsCursorPosition['default'](tail.section.prev, tail.section.prev.length);
+  }
+
+  return range;
+}
+
 var CALLBACK_QUEUES = {
   BEFORE_COMPLETE: 'beforeComplete',
   COMPLETE: 'complete',
@@ -935,7 +946,7 @@ var PostEditor = (function () {
 
       var range = arguments.length <= 1 || arguments[1] === undefined ? this._range : arguments[1];
 
-      range = (0, _utilsToRange['default'])(range);
+      range = shrinkRange((0, _utilsToRange['default'])(range));
 
       sectionTagName = (0, _utilsDomUtils.normalizeTagName)(sectionTagName);
       var post = this.editor.post;
@@ -951,6 +962,7 @@ var PostEditor = (function () {
       var sectionTransformations = [];
       post.walkMarkerableSections(range, function (section) {
         var changedSection = _this13.changeSectionTagName(section, tagName);
+
         sectionTransformations.push({
           from: section,
           to: changedSection

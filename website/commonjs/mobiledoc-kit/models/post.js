@@ -221,6 +221,10 @@ var Post = (function () {
     value: function trimTo(range) {
       var post = this.builder.createPost();
       var builder = this.builder;
+      var head = range.head;
+      var tail = range.tail;
+
+      var tailNotSelected = tail.offset === 0 && head.section !== tail.section;
 
       var sectionParent = post,
           listParent = null;
@@ -240,7 +244,8 @@ var Post = (function () {
           } else {
             listParent = null;
             sectionParent = post;
-            newSection = builder.createMarkupSection(section.tagName);
+            var tagName = tailNotSelected && tail.section === section ? 'p' : section.tagName;
+            newSection = builder.createMarkupSection(tagName);
           }
 
           var currentRange = range.trimTo(section);
@@ -248,7 +253,8 @@ var Post = (function () {
             return newSection.markers.append(m);
           });
         } else {
-          newSection = section.clone();
+          newSection = tailNotSelected && tail.section === section ? builder.createMarkupSection('p') : section.clone();
+
           sectionParent = post;
         }
         if (sectionParent) {

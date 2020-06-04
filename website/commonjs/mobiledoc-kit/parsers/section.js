@@ -26,7 +26,7 @@ var _utilsAssert = require('../utils/assert');
 
 var SKIPPABLE_ELEMENT_TAG_NAMES = ['style', 'head', 'title', 'meta'].map(_utilsDomUtils.normalizeTagName);
 
-var NEWLINES = /\n/g;
+var NEWLINES = /\s*\n\s*/g;
 function sanitize(text) {
   return text.replace(NEWLINES, ' ');
 }
@@ -90,7 +90,7 @@ var SectionParser = (function () {
         addSection: function addSection(section) {
           // avoid creating empty paragraphs due to wrapper elements around
           // parser-plugin-handled elements
-          if (_this2.state.section.isMarkerable && !_this2.state.text && !_this2.state.section.text) {
+          if (_this2.state.section && _this2.state.section.isMarkerable && !_this2.state.section.text && !_this2.state.text) {
             _this2.state.section = null;
           } else {
             _this2._closeCurrentSection();
@@ -101,6 +101,13 @@ var SectionParser = (function () {
           var state = _this2.state;
           var section = state.section;
 
+          // if the first element doesn't create it's own state and it's plugin
+          // handler uses `addMarkerable` we won't have a section yet
+          if (!section) {
+            state.text = '';
+            state.section = _this2.builder.createMarkupSection((0, _utilsDomUtils.normalizeTagName)('p'));
+            section = state.section;
+          }
           (0, _utilsAssert['default'])('Markerables can only be appended to markup sections and list item sections', section && section.isMarkerable);
           if (state.text) {
             _this2._createMarker();
@@ -145,6 +152,13 @@ var SectionParser = (function () {
         var isMarkupSection = (0, _utilsArrayUtils.contains)(_modelsMarkupSection.VALID_MARKUP_SECTION_TAGNAMES, tagName);
         var isNestedListSection = isListSection && this.state.section.isListItem;
         var lastSection = this.sections[this.sections.length - 1];
+
+        // lists can continue after breaking out for a markup section,
+        // in that situation, start a new list using the same list type
+        if (isListItem && this.state.section.isMarkupSection) {
+          this._closeCurrentSection();
+          this._updateStateFromElement(node.parentElement);
+        }
 
         // we can hit a list item after parsing a nested list, when that happens
         // and the lists are of different types we need to make sure we switch
@@ -247,6 +261,10 @@ var SectionParser = (function () {
   }, {
     key: '_updateStateFromElement',
     value: function _updateStateFromElement(element) {
+      if ((0, _utilsDomUtils.isCommentNode)(element)) {
+        return;
+      }
+
       var state = this.state;
 
       state.section = this._createSectionFromElement(element);
@@ -362,12 +380,19 @@ var SectionParser = (function () {
       var sectionType = undefined,
           tagName = undefined,
           inferredTagName = false;
+
       if ((0, _utilsDomUtils.isTextNode)(element)) {
         tagName = _modelsMarkupSection.DEFAULT_TAG_NAME;
         sectionType = _modelsTypes.MARKUP_SECTION_TYPE;
         inferredTagName = true;
       } else {
         tagName = (0, _utilsDomUtils.normalizeTagName)(element.tagName);
+
+        // blockquote>p is valid html and should be treated as a blockquote section
+        // rather than a plain markup section
+        if (tagName === 'p' && element.parentElement && (0, _utilsDomUtils.normalizeTagName)(element.parentElement.tagName) === 'blockquote') {
+          tagName = 'blockquote';
+        }
 
         if ((0, _utilsArrayUtils.contains)(_modelsListSection.VALID_LIST_SECTION_TAGNAMES, tagName)) {
           sectionType = _modelsTypes.LIST_SECTION_TYPE;
@@ -387,6 +412,10 @@ var SectionParser = (function () {
   }, {
     key: '_createSectionFromElement',
     value: function _createSectionFromElement(element) {
+      if ((0, _utilsDomUtils.isCommentNode)(element)) {
+        return;
+      }
+
       var builder = this.builder;
 
       var section = undefined;
@@ -417,7 +446,7 @@ var SectionParser = (function () {
   }, {
     key: '_isSkippable',
     value: function _isSkippable(element) {
-      return (0, _utilsDomUtils.isCommentNode)(element) || element.nodeType === _utilsDomUtils.NODE_TYPES.ELEMENT && (0, _utilsArrayUtils.contains)(SKIPPABLE_ELEMENT_TAG_NAMES, (0, _utilsDomUtils.normalizeTagName)(element.tagName));
+      return element.nodeType === _utilsDomUtils.NODE_TYPES.ELEMENT && (0, _utilsArrayUtils.contains)(SKIPPABLE_ELEMENT_TAG_NAMES, (0, _utilsDomUtils.normalizeTagName)(element.tagName));
     }
   }]);
 

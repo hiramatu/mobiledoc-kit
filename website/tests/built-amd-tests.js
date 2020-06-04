@@ -72,6 +72,22 @@ define('tests/acceptance/basic-editor-test', ['exports', 'mobiledoc-kit', '../te
     assert.hasElement('#editor p:contains(XY)', 'inserts text at correct spot');
   });
 
+  test('when presented no mobiledoc to Editor constructor generates empty section', function (assert) {
+    editor = new _mobiledocKit.Editor();
+    editor.render(editorElement);
+
+    assert.hasElement('#editor');
+
+    /* We are asserting here that there is a clickable target in the DOM. */
+    assert.hasElement('#editor p');
+
+    var _Helpers$postAbstract$buildFromText = _testHelpers['default'].postAbstract.buildFromText('');
+
+    var expected = _Helpers$postAbstract$buildFromText.post;
+
+    assert.postIsSimilar(editor.post, expected);
+  });
+
   test('typing when on the end of a card is blocked', function (assert) {
     editor = _testHelpers['default'].editor.buildFromText('[my-card]', { element: editorElement, cards: cards });
 
@@ -102,9 +118,9 @@ define('tests/acceptance/basic-editor-test', ['exports', 'mobiledoc-kit', '../te
     _testHelpers['default'].dom.insertText(editor, _mobiledocKitUtilsCharacters.TAB);
     _testHelpers['default'].dom.insertText(editor, 'Y');
 
-    var _Helpers$postAbstract$buildFromText = _testHelpers['default'].postAbstract.buildFromText(_mobiledocKitUtilsCharacters.TAB + 'Y');
+    var _Helpers$postAbstract$buildFromText2 = _testHelpers['default'].postAbstract.buildFromText(_mobiledocKitUtilsCharacters.TAB + 'Y');
 
-    var expected = _Helpers$postAbstract$buildFromText.post;
+    var expected = _Helpers$postAbstract$buildFromText2.post;
 
     assert.postIsSimilar(editor.post, expected);
   });
@@ -129,10 +145,10 @@ define('tests/acceptance/basic-editor-test', ['exports', 'mobiledoc-kit', '../te
 
     _testHelpers['default'].dom.insertText(editor, _mobiledocKitUtilsCharacters.ENTER);
 
-    var _Helpers$postAbstract$buildFromText2 = _testHelpers['default'].postAbstract.buildFromText(['hi', '|hey']);
+    var _Helpers$postAbstract$buildFromText3 = _testHelpers['default'].postAbstract.buildFromText(['hi', '|hey']);
 
-    var expected = _Helpers$postAbstract$buildFromText2.post;
-    var expectedRange = _Helpers$postAbstract$buildFromText2.range;
+    var expected = _Helpers$postAbstract$buildFromText3.post;
+    var expectedRange = _Helpers$postAbstract$buildFromText3.range;
 
     assert.postIsSimilar(editor.post, expected, 'correctly encoded');
     assert.rangeIsEqual(editor.range, _testHelpers['default'].editor.retargetRange(expectedRange, editor.post));
@@ -196,9 +212,9 @@ define('tests/acceptance/basic-editor-test', ['exports', 'mobiledoc-kit', '../te
       event.preventDefault();
     });
 
-    var _Helpers$postAbstract$buildFromText3 = _testHelpers['default'].postAbstract.buildFromText(['Line1']);
+    var _Helpers$postAbstract$buildFromText4 = _testHelpers['default'].postAbstract.buildFromText(['Line1']);
 
-    var expected = _Helpers$postAbstract$buildFromText3.post;
+    var expected = _Helpers$postAbstract$buildFromText4.post;
 
     _testHelpers['default'].dom.insertText(editor, 'Line1');
     _testHelpers['default'].dom.insertText(editor, _mobiledocKitUtilsCharacters.ENTER);
@@ -5305,7 +5321,7 @@ define('tests/acceptance/editor-sections-test', ['exports', 'mobiledoc-kit', '..
     });
   });
 });
-define('tests/acceptance/editor-selections-test', ['exports', 'mobiledoc-kit', '../test-helpers', 'mobiledoc-kit/renderers/mobiledoc/0-2'], function (exports, _mobiledocKit, _testHelpers, _mobiledocKitRenderersMobiledoc02) {
+define('tests/acceptance/editor-selections-test', ['exports', 'mobiledoc-kit', 'mobiledoc-kit/utils/selection-utils', '../test-helpers', 'mobiledoc-kit/renderers/mobiledoc/0-2'], function (exports, _mobiledocKit, _mobiledocKitUtilsSelectionUtils, _testHelpers, _mobiledocKitRenderersMobiledoc02) {
   'use strict';
 
   var test = _testHelpers['default'].test;
@@ -5453,6 +5469,8 @@ define('tests/acceptance/editor-selections-test', ['exports', 'mobiledoc-kit', '
   });
 
   test('select text and apply markup multiple times', function (assert) {
+    var done = assert.async();
+
     editor = new _mobiledocKit.Editor({ mobiledoc: mobileDocWith2Sections });
     editor.render(editorElement);
 
@@ -5463,19 +5481,26 @@ define('tests/acceptance/editor-selections-test', ['exports', 'mobiledoc-kit', '
       return postEditor.toggleMarkup('strong');
     });
 
-    _testHelpers['default'].dom.selectText(editor, 'fir', editorElement);
-    editor.run(function (postEditor) {
-      return postEditor.toggleMarkup('strong');
-    });
-    _testHelpers['default'].dom.triggerEvent(document, 'mouseup');
+    _testHelpers['default'].wait(function () {
+      _testHelpers['default'].dom.selectText(editor, 'fir', editorElement);
+      editor.run(function (postEditor) {
+        return postEditor.toggleMarkup('strong');
+      });
+      (0, _mobiledocKitUtilsSelectionUtils.clearSelection)();
+      _testHelpers['default'].dom.triggerEvent(document, 'mouseup');
 
-    editor.run(function (postEditor) {
-      return postEditor.toggleMarkup('strong');
-    });
+      _testHelpers['default'].wait(function () {
+        editor.run(function (postEditor) {
+          return postEditor.toggleMarkup('strong');
+        });
 
-    assert.hasElement('p:contains(first section)', 'correct first section');
-    assert.hasElement('strong:contains(fir)', 'strong "fir"');
-    assert.hasElement('strong:contains(t sect)', 'strong "t sect"');
+        assert.hasElement('p:contains(first section)', 'correct first section');
+        assert.hasElement('strong:contains(fir)', 'strong "fir"');
+        assert.hasElement('strong:contains(t sect)', 'strong "t sect"');
+
+        done();
+      });
+    });
   });
 
   test('selecting text across markers deletes intermediary markers', function (assert) {
@@ -7543,7 +7568,7 @@ define('tests/helpers/assertions', ['exports', './dom', 'mobiledoc-kit/renderers
     QUnit.assert.hasElement = function (selector) {
       var message = arguments.length <= 1 || arguments[1] === undefined ? 'hasElement "' + selector + '"' : arguments[1];
       return (function () {
-        var found = $(selector);
+        var found = $('#qunit-fixture').find(selector);
         this.pushResult({
           result: found.length > 0,
           actual: found.length + ' matches for \'' + selector + '\'',
@@ -12739,12 +12764,42 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
     assert.positionIsEqual(mockEditor._renderedRange.tail, post.sections.tail.toPosition(2), 'Maintains the selection');
   });
 
-  test('#toggleSection skips over non-markerable sections', function (assert) {
+  test('#toggleSection does not update tail markup if tail offset is 0', function (assert) {
     var post = _testHelpers['default'].postAbstract.build(function (_ref35) {
       var post = _ref35.post;
       var markupSection = _ref35.markupSection;
       var marker = _ref35.marker;
-      var cardSection = _ref35.cardSection;
+
+      return post([markupSection('p', [marker('abc')]), markupSection('p', [marker('123')])]);
+    });
+
+    mockEditor = renderBuiltAbstract(post, mockEditor);
+    var range = _mobiledocKitUtilsCursorRange['default'].create(post.sections.head, 2, post.sections.tail, 0);
+
+    postEditor = new _mobiledocKitEditorPost['default'](mockEditor);
+    postEditor.toggleSection('blockquote', range);
+    postEditor.complete();
+
+    assert.equal(post.sections.head.tagName, 'blockquote');
+    assert.equal(post.sections.tail.tagName, 'p');
+
+    postEditor = new _mobiledocKitEditorPost['default'](mockEditor);
+    postEditor.toggleSection('blockquote', range);
+    postEditor.complete();
+
+    assert.equal(post.sections.head.tagName, 'p');
+    assert.equal(post.sections.tail.tagName, 'p');
+
+    assert.positionIsEqual(mockEditor._renderedRange.head, post.sections.head.toPosition(2), 'Maintains the selection');
+    assert.positionIsEqual(mockEditor._renderedRange.tail, post.sections.head.toPosition(3), 'Maintains the selection');
+  });
+
+  test('#toggleSection skips over non-markerable sections', function (assert) {
+    var post = _testHelpers['default'].postAbstract.build(function (_ref36) {
+      var post = _ref36.post;
+      var markupSection = _ref36.markupSection;
+      var marker = _ref36.marker;
+      var cardSection = _ref36.cardSection;
 
       return post([markupSection('p', [marker('abc')]), cardSection('my-card'), markupSection('p', [marker('123')])]);
     });
@@ -12764,11 +12819,11 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
   });
 
   test('#toggleSection when cursor is in non-markerable section changes nothing', function (assert) {
-    var post = _testHelpers['default'].postAbstract.build(function (_ref36) {
-      var post = _ref36.post;
-      var markupSection = _ref36.markupSection;
-      var marker = _ref36.marker;
-      var cardSection = _ref36.cardSection;
+    var post = _testHelpers['default'].postAbstract.build(function (_ref37) {
+      var post = _ref37.post;
+      var markupSection = _ref37.markupSection;
+      var marker = _ref37.marker;
+      var cardSection = _ref37.cardSection;
 
       return post([cardSection('my-card')]);
     });
@@ -12788,17 +12843,17 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
     assert.expect(6);
     var done = assert.async();
 
-    editor = buildEditorWithMobiledoc(function (_ref37) {
-      var post = _ref37.post;
-      var markupSection = _ref37.markupSection;
-      var marker = _ref37.marker;
-
-      return post([markupSection('p', [marker('abc')])]);
-    }, false);
-    var expected = _testHelpers['default'].postAbstract.build(function (_ref38) {
+    editor = buildEditorWithMobiledoc(function (_ref38) {
       var post = _ref38.post;
       var markupSection = _ref38.markupSection;
       var marker = _ref38.marker;
+
+      return post([markupSection('p', [marker('abc')])]);
+    }, false);
+    var expected = _testHelpers['default'].postAbstract.build(function (_ref39) {
+      var post = _ref39.post;
+      var markupSection = _ref39.markupSection;
+      var marker = _ref39.marker;
 
       return post([markupSection('p', [marker('abc')])]);
     });
@@ -12821,11 +12876,11 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
   });
 
   test('#toggleSection toggle single p -> list item', function (assert) {
-    var post = _testHelpers['default'].postAbstract.build(function (_ref39) {
-      var post = _ref39.post;
-      var markupSection = _ref39.markupSection;
-      var marker = _ref39.marker;
-      var markup = _ref39.markup;
+    var post = _testHelpers['default'].postAbstract.build(function (_ref40) {
+      var post = _ref40.post;
+      var markupSection = _ref40.markupSection;
+      var marker = _ref40.marker;
+      var markup = _ref40.markup;
 
       return post([markupSection('p', [marker('a'), marker('b', [markup('b')]), marker('c')])]);
     });
@@ -12852,12 +12907,12 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
   });
 
   test('#toggleSection toggle single list item -> p', function (assert) {
-    var post = _testHelpers['default'].postAbstract.build(function (_ref40) {
-      var post = _ref40.post;
-      var listSection = _ref40.listSection;
-      var listItem = _ref40.listItem;
-      var marker = _ref40.marker;
-      var markup = _ref40.markup;
+    var post = _testHelpers['default'].postAbstract.build(function (_ref41) {
+      var post = _ref41.post;
+      var listSection = _ref41.listSection;
+      var listItem = _ref41.listItem;
+      var marker = _ref41.marker;
+      var markup = _ref41.markup;
 
       return post([listSection('ul', [listItem([marker('a'), marker('b', [markup('b')]), marker('c')])])]);
     });
@@ -12882,10 +12937,10 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
   });
 
   test('#toggleSection toggle multiple ps -> list and list -> multiple ps', function (assert) {
-    var mobiledoc = _testHelpers['default'].mobiledoc.build(function (_ref41) {
-      var post = _ref41.post;
-      var markupSection = _ref41.markupSection;
-      var marker = _ref41.marker;
+    var mobiledoc = _testHelpers['default'].mobiledoc.build(function (_ref42) {
+      var post = _ref42.post;
+      var markupSection = _ref42.markupSection;
+      var marker = _ref42.marker;
 
       return post([markupSection('p', [marker('abc')]), markupSection('p', [marker('123')])]);
     });
@@ -12909,7 +12964,7 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
     assert.equal(listSection.items.head.text, 'abc');
     assert.equal(listSection.items.tail.text, '123');
 
-    range = _mobiledocKitUtilsCursorRange['default'].create(listSection.items.head, 0, listSection.items.tail, 0);
+    range = _mobiledocKitUtilsCursorRange['default'].create(listSection.items.head, 0, listSection.items.tail, 1);
     postEditor = new _mobiledocKitEditorPost['default'](editor);
     postEditor.toggleSection('ul', range);
     postEditor.complete();
@@ -12925,12 +12980,12 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
   });
 
   test('#toggleSection untoggle first list item changes it to markup section, retains markup', function (assert) {
-    var post = _testHelpers['default'].postAbstract.build(function (_ref42) {
-      var post = _ref42.post;
-      var listSection = _ref42.listSection;
-      var listItem = _ref42.listItem;
-      var marker = _ref42.marker;
-      var markup = _ref42.markup;
+    var post = _testHelpers['default'].postAbstract.build(function (_ref43) {
+      var post = _ref43.post;
+      var listSection = _ref43.listSection;
+      var listItem = _ref43.listItem;
+      var marker = _ref43.marker;
+      var markup = _ref43.markup;
 
       return post([listSection('ul', [listItem([marker('a'), marker('b', [markup('b')]), marker('c')]), listItem([marker('def')]), listItem([marker('ghi')])])]);
     });
@@ -12958,12 +13013,12 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
   });
 
   test('#toggleSection untoggle middle list item changes it to markup section, retaining markup', function (assert) {
-    var post = _testHelpers['default'].postAbstract.build(function (_ref43) {
-      var post = _ref43.post;
-      var listSection = _ref43.listSection;
-      var listItem = _ref43.listItem;
-      var marker = _ref43.marker;
-      var markup = _ref43.markup;
+    var post = _testHelpers['default'].postAbstract.build(function (_ref44) {
+      var post = _ref44.post;
+      var listSection = _ref44.listSection;
+      var listItem = _ref44.listItem;
+      var marker = _ref44.marker;
+      var markup = _ref44.markup;
 
       return post([listSection('ul', [listItem([marker('abc')]), listItem([marker('d'), marker('e', [markup('b')]), marker('f')]), listItem([marker('ghi')])])]);
     });
@@ -12994,12 +13049,12 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
   });
 
   test('#toggleSection toggle markup section -> ul between lists joins the lists', function (assert) {
-    var mobiledoc = _testHelpers['default'].mobiledoc.build(function (_ref44) {
-      var post = _ref44.post;
-      var listSection = _ref44.listSection;
-      var listItem = _ref44.listItem;
-      var marker = _ref44.marker;
-      var markupSection = _ref44.markupSection;
+    var mobiledoc = _testHelpers['default'].mobiledoc.build(function (_ref45) {
+      var post = _ref45.post;
+      var listSection = _ref45.listSection;
+      var listItem = _ref45.listItem;
+      var marker = _ref45.marker;
+      var markupSection = _ref45.markupSection;
 
       return post([listSection('ul', [listItem([marker('abc')])]), markupSection('p', [marker('123')]), listSection('ul', [listItem([marker('def')])])]);
     });
@@ -13028,16 +13083,16 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
   });
 
   test('#toggleSection untoggle multiple items at end of list changes them to markup sections', function (assert) {
-    var post = _testHelpers['default'].postAbstract.build(function (_ref45) {
-      var post = _ref45.post;
-      var listSection = _ref45.listSection;
-      var listItem = _ref45.listItem;
-      var marker = _ref45.marker;
+    var post = _testHelpers['default'].postAbstract.build(function (_ref46) {
+      var post = _ref46.post;
+      var listSection = _ref46.listSection;
+      var listItem = _ref46.listItem;
+      var marker = _ref46.marker;
 
       return post([listSection('ul', [listItem([marker('abc')]), listItem([marker('def')]), listItem([marker('ghi')])])]);
     });
     mockEditor = renderBuiltAbstract(post, mockEditor);
-    var range = _mobiledocKitUtilsCursorRange['default'].create(post.sections.head.items.objectAt(1), 0, post.sections.head.items.tail, 0);
+    var range = _mobiledocKitUtilsCursorRange['default'].create(post.sections.head.items.objectAt(1), 0, post.sections.head.items.tail, 1);
 
     postEditor = new _mobiledocKitEditorPost['default'](mockEditor);
     postEditor.toggleSection('ul', range);
@@ -13057,16 +13112,16 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
   });
 
   test('#toggleSection untoggle multiple items at start of list changes them to markup sections', function (assert) {
-    var post = _testHelpers['default'].postAbstract.build(function (_ref46) {
-      var post = _ref46.post;
-      var listSection = _ref46.listSection;
-      var listItem = _ref46.listItem;
-      var marker = _ref46.marker;
+    var post = _testHelpers['default'].postAbstract.build(function (_ref47) {
+      var post = _ref47.post;
+      var listSection = _ref47.listSection;
+      var listItem = _ref47.listItem;
+      var marker = _ref47.marker;
 
       return post([listSection('ul', [listItem([marker('abc')]), listItem([marker('def')]), listItem([marker('ghi')])])]);
     });
     mockEditor = renderBuiltAbstract(post, mockEditor);
-    var range = _mobiledocKitUtilsCursorRange['default'].create(post.sections.head.items.head, 0, post.sections.head.items.objectAt(1), 0);
+    var range = _mobiledocKitUtilsCursorRange['default'].create(post.sections.head.items.head, 0, post.sections.head.items.objectAt(1), 1);
 
     postEditor = new _mobiledocKitEditorPost['default'](mockEditor);
     postEditor.toggleSection('ul', range);
@@ -13087,12 +13142,12 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
   });
 
   test('#toggleSection untoggle items and overflowing markup sections changes the overflow to items', function (assert) {
-    var mobiledoc = _testHelpers['default'].mobiledoc.build(function (_ref47) {
-      var post = _ref47.post;
-      var listSection = _ref47.listSection;
-      var listItem = _ref47.listItem;
-      var markupSection = _ref47.markupSection;
-      var marker = _ref47.marker;
+    var mobiledoc = _testHelpers['default'].mobiledoc.build(function (_ref48) {
+      var post = _ref48.post;
+      var listSection = _ref48.listSection;
+      var listItem = _ref48.listItem;
+      var markupSection = _ref48.markupSection;
+      var marker = _ref48.marker;
 
       return post([listSection('ul', [listItem([marker('abc')]), listItem([marker('def')]), listItem([marker('ghi')])]), markupSection('p', [marker('123')])]);
     });
@@ -13101,7 +13156,7 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
     var _editor3 = editor;
     var post = _editor3.post;
 
-    var range = _mobiledocKitUtilsCursorRange['default'].create(post.sections.head.items.objectAt(1), 0, post.sections.tail, 0);
+    var range = _mobiledocKitUtilsCursorRange['default'].create(post.sections.head.items.objectAt(1), 0, post.sections.tail, 1);
 
     postEditor = new _mobiledocKitEditorPost['default'](editor);
     postEditor.toggleSection('ul', range);
@@ -13121,11 +13176,11 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
   });
 
   test('#toggleSection untoggle last list item changes it to markup section', function (assert) {
-    var post = _testHelpers['default'].postAbstract.build(function (_ref48) {
-      var post = _ref48.post;
-      var listSection = _ref48.listSection;
-      var listItem = _ref48.listItem;
-      var marker = _ref48.marker;
+    var post = _testHelpers['default'].postAbstract.build(function (_ref49) {
+      var post = _ref49.post;
+      var listSection = _ref49.listSection;
+      var listItem = _ref49.listItem;
+      var marker = _ref49.marker;
 
       return post([listSection('ul', [listItem([marker('abc')]), listItem([marker('def')]), listItem([marker('ghi')])])]);
     });
@@ -13149,11 +13204,11 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
   });
 
   test('#toggleSection toggle list item to different type of list item', function (assert) {
-    var post = _testHelpers['default'].postAbstract.build(function (_ref49) {
-      var post = _ref49.post;
-      var listSection = _ref49.listSection;
-      var listItem = _ref49.listItem;
-      var marker = _ref49.marker;
+    var post = _testHelpers['default'].postAbstract.build(function (_ref50) {
+      var post = _ref50.post;
+      var listSection = _ref50.listSection;
+      var listItem = _ref50.listItem;
+      var marker = _ref50.marker;
 
       return post([listSection('ul', [listItem([marker('abc')])])]);
     });
@@ -13175,12 +13230,12 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
   });
 
   test('#toggleSection toggle list item to different type of list item when other sections precede it', function (assert) {
-    var post = _testHelpers['default'].postAbstract.build(function (_ref50) {
-      var post = _ref50.post;
-      var listSection = _ref50.listSection;
-      var listItem = _ref50.listItem;
-      var marker = _ref50.marker;
-      var markupSection = _ref50.markupSection;
+    var post = _testHelpers['default'].postAbstract.build(function (_ref51) {
+      var post = _ref51.post;
+      var listSection = _ref51.listSection;
+      var listItem = _ref51.listItem;
+      var marker = _ref51.marker;
+      var markupSection = _ref51.markupSection;
 
       return post([markupSection('p', [marker('123')]), listSection('ul', [listItem([marker('abc')])])]);
     });
@@ -13204,9 +13259,9 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
   });
 
   test('#toggleSection toggle when cursor on card section is no-op', function (assert) {
-    var post = _testHelpers['default'].postAbstract.build(function (_ref51) {
-      var post = _ref51.post;
-      var cardSection = _ref51.cardSection;
+    var post = _testHelpers['default'].postAbstract.build(function (_ref52) {
+      var post = _ref52.post;
+      var cardSection = _ref52.cardSection;
 
       return post([cardSection('my-card')]);
     });
@@ -13226,11 +13281,11 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
   });
 
   test('#toggleSection joins contiguous list items', function (assert) {
-    var mobiledoc = _testHelpers['default'].mobiledoc.build(function (_ref52) {
-      var post = _ref52.post;
-      var listSection = _ref52.listSection;
-      var listItem = _ref52.listItem;
-      var marker = _ref52.marker;
+    var mobiledoc = _testHelpers['default'].mobiledoc.build(function (_ref53) {
+      var post = _ref53.post;
+      var listSection = _ref53.listSection;
+      var listItem = _ref53.listItem;
+      var marker = _ref53.marker;
 
       return post([listSection('ul', [listItem([marker('abc')])]), listSection('ol', [listItem([marker('123')])]), listSection('ul', [listItem([marker('def')])])]);
     });
@@ -13254,10 +13309,10 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
   });
 
   test('#toggleSection maintains the selection when the sections in the selected range are still there', function (assert) {
-    var post = _testHelpers['default'].postAbstract.build(function (_ref53) {
-      var post = _ref53.post;
-      var markupSection = _ref53.markupSection;
-      var marker = _ref53.marker;
+    var post = _testHelpers['default'].postAbstract.build(function (_ref54) {
+      var post = _ref54.post;
+      var markupSection = _ref54.markupSection;
+      var marker = _ref54.marker;
 
       return post([markupSection('p', [marker('abc')])]);
     });
@@ -13274,11 +13329,11 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
   });
 
   test('#toggleMarkup when cursor is in non-markerable does nothing', function (assert) {
-    editor = buildEditorWithMobiledoc(function (_ref54) {
-      var post = _ref54.post;
-      var markupSection = _ref54.markupSection;
-      var marker = _ref54.marker;
-      var cardSection = _ref54.cardSection;
+    editor = buildEditorWithMobiledoc(function (_ref55) {
+      var post = _ref55.post;
+      var markupSection = _ref55.markupSection;
+      var marker = _ref55.marker;
+      var cardSection = _ref55.cardSection;
 
       return post([cardSection('my-card')]);
     });
@@ -13293,11 +13348,11 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
   });
 
   test('#toggleMarkup when cursor surrounds non-markerable does nothing', function (assert) {
-    editor = buildEditorWithMobiledoc(function (_ref55) {
-      var post = _ref55.post;
-      var markupSection = _ref55.markupSection;
-      var marker = _ref55.marker;
-      var cardSection = _ref55.cardSection;
+    editor = buildEditorWithMobiledoc(function (_ref56) {
+      var post = _ref56.post;
+      var markupSection = _ref56.markupSection;
+      var marker = _ref56.marker;
+      var cardSection = _ref56.cardSection;
 
       return post([cardSection('my-card')]);
     });
@@ -13312,18 +13367,18 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
   });
 
   test('#toggleMarkup when range has the markup removes it', function (assert) {
-    editor = buildEditorWithMobiledoc(function (_ref56) {
-      var post = _ref56.post;
-      var markupSection = _ref56.markupSection;
-      var marker = _ref56.marker;
-      var markup = _ref56.markup;
-
-      return post([markupSection('p', [marker('abc', [markup('b')])])]);
-    });
-    var expected = _testHelpers['default'].postAbstract.build(function (_ref57) {
+    editor = buildEditorWithMobiledoc(function (_ref57) {
       var post = _ref57.post;
       var markupSection = _ref57.markupSection;
       var marker = _ref57.marker;
+      var markup = _ref57.markup;
+
+      return post([markupSection('p', [marker('abc', [markup('b')])])]);
+    });
+    var expected = _testHelpers['default'].postAbstract.build(function (_ref58) {
+      var post = _ref58.post;
+      var markupSection = _ref58.markupSection;
+      var marker = _ref58.marker;
 
       return post([markupSection('p', [marker('abc')])]);
     });
@@ -13339,18 +13394,18 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
   });
 
   test('#toggleMarkup when only some of the range has it removes it', function (assert) {
-    editor = buildEditorWithMobiledoc(function (_ref58) {
-      var post = _ref58.post;
-      var markupSection = _ref58.markupSection;
-      var marker = _ref58.marker;
-      var markup = _ref58.markup;
-
-      return post([markupSection('p', [marker('a'), marker('b', [markup('b')]), marker('c')])]);
-    });
-    var expected = _testHelpers['default'].postAbstract.build(function (_ref59) {
+    editor = buildEditorWithMobiledoc(function (_ref59) {
       var post = _ref59.post;
       var markupSection = _ref59.markupSection;
       var marker = _ref59.marker;
+      var markup = _ref59.markup;
+
+      return post([markupSection('p', [marker('a'), marker('b', [markup('b')]), marker('c')])]);
+    });
+    var expected = _testHelpers['default'].postAbstract.build(function (_ref60) {
+      var post = _ref60.post;
+      var markupSection = _ref60.markupSection;
+      var marker = _ref60.marker;
 
       return post([markupSection('p', [marker('abc')])]);
     });
@@ -13366,18 +13421,18 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
   });
 
   test('#toggleMarkup when range does not have the markup adds it', function (assert) {
-    editor = buildEditorWithMobiledoc(function (_ref60) {
-      var post = _ref60.post;
-      var markupSection = _ref60.markupSection;
-      var marker = _ref60.marker;
-
-      return post([markupSection('p', [marker('abc')])]);
-    });
-    var expected = _testHelpers['default'].postAbstract.build(function (_ref61) {
+    editor = buildEditorWithMobiledoc(function (_ref61) {
       var post = _ref61.post;
       var markupSection = _ref61.markupSection;
       var marker = _ref61.marker;
-      var markup = _ref61.markup;
+
+      return post([markupSection('p', [marker('abc')])]);
+    });
+    var expected = _testHelpers['default'].postAbstract.build(function (_ref62) {
+      var post = _ref62.post;
+      var markupSection = _ref62.markupSection;
+      var marker = _ref62.marker;
+      var markup = _ref62.markup;
 
       return post([markupSection('p', [marker('abc', [markup('b')])])]);
     });
@@ -13395,17 +13450,17 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
   test('#toggleMarkup when the editor has no cursor', function (assert) {
     var done = assert.async();
 
-    editor = buildEditorWithMobiledoc(function (_ref62) {
-      var post = _ref62.post;
-      var markupSection = _ref62.markupSection;
-      var marker = _ref62.marker;
-
-      return post([markupSection('p', [marker('abc')])]);
-    }, false);
-    var expected = _testHelpers['default'].postAbstract.build(function (_ref63) {
+    editor = buildEditorWithMobiledoc(function (_ref63) {
       var post = _ref63.post;
       var markupSection = _ref63.markupSection;
       var marker = _ref63.marker;
+
+      return post([markupSection('p', [marker('abc')])]);
+    }, false);
+    var expected = _testHelpers['default'].postAbstract.build(function (_ref64) {
+      var post = _ref64.post;
+      var markupSection = _ref64.markupSection;
+      var marker = _ref64.marker;
 
       return post([markupSection('p', [marker('abc')])]);
     });
@@ -13428,21 +13483,21 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
   test('#insertMarkers inserts an atom', function (assert) {
     var toInsert = undefined,
         expected = undefined;
-    _testHelpers['default'].postAbstract.build(function (_ref64) {
-      var post = _ref64.post;
-      var markupSection = _ref64.markupSection;
-      var marker = _ref64.marker;
-      var markup = _ref64.markup;
-      var atom = _ref64.atom;
+    _testHelpers['default'].postAbstract.build(function (_ref65) {
+      var post = _ref65.post;
+      var markupSection = _ref65.markupSection;
+      var marker = _ref65.marker;
+      var markup = _ref65.markup;
+      var atom = _ref65.atom;
 
       toInsert = [atom('simple-atom', '123', [markup('b')])];
       expected = post([markupSection('p', [marker('abc'), atom('simple-atom', '123', [markup('b')]), marker('def')])]);
     });
 
-    editor = buildEditorWithMobiledoc(function (_ref65) {
-      var post = _ref65.post;
-      var markupSection = _ref65.markupSection;
-      var marker = _ref65.marker;
+    editor = buildEditorWithMobiledoc(function (_ref66) {
+      var post = _ref66.post;
+      var markupSection = _ref66.markupSection;
+      var marker = _ref66.marker;
 
       return post([markupSection('p', [marker('abcdef')])]);
     });
@@ -13459,20 +13514,20 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
   test('#insertMarkers inserts the markers in middle, merging markups', function (assert) {
     var toInsert = undefined,
         expected = undefined;
-    _testHelpers['default'].postAbstract.build(function (_ref66) {
-      var post = _ref66.post;
-      var markupSection = _ref66.markupSection;
-      var marker = _ref66.marker;
-      var markup = _ref66.markup;
+    _testHelpers['default'].postAbstract.build(function (_ref67) {
+      var post = _ref67.post;
+      var markupSection = _ref67.markupSection;
+      var marker = _ref67.marker;
+      var markup = _ref67.markup;
 
       toInsert = [marker('123', [markup('b')]), marker('456')];
       expected = post([markupSection('p', [marker('abc'), marker('123', [markup('b')]), marker('456def')])]);
     });
 
-    editor = buildEditorWithMobiledoc(function (_ref67) {
-      var post = _ref67.post;
-      var markupSection = _ref67.markupSection;
-      var marker = _ref67.marker;
+    editor = buildEditorWithMobiledoc(function (_ref68) {
+      var post = _ref68.post;
+      var markupSection = _ref68.markupSection;
+      var marker = _ref68.marker;
 
       return post([markupSection('p', [marker('abcdef')])]);
     });
@@ -13489,19 +13544,19 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
   test('#insertMarkers inserts the markers when the markerable has no markers', function (assert) {
     var toInsert = undefined,
         expected = undefined;
-    _testHelpers['default'].postAbstract.build(function (_ref68) {
-      var post = _ref68.post;
-      var markupSection = _ref68.markupSection;
-      var marker = _ref68.marker;
-      var markup = _ref68.markup;
+    _testHelpers['default'].postAbstract.build(function (_ref69) {
+      var post = _ref69.post;
+      var markupSection = _ref69.markupSection;
+      var marker = _ref69.marker;
+      var markup = _ref69.markup;
 
       toInsert = [marker('123', [markup('b')]), marker('456')];
       expected = post([markupSection('p', [marker('123', [markup('b')]), marker('456')])]);
     });
 
-    editor = buildEditorWithMobiledoc(function (_ref69) {
-      var post = _ref69.post;
-      var markupSection = _ref69.markupSection;
+    editor = buildEditorWithMobiledoc(function (_ref70) {
+      var post = _ref70.post;
+      var markupSection = _ref70.markupSection;
 
       return post([markupSection()]);
     });
@@ -13518,20 +13573,20 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
   test('#insertMarkers inserts the markers at start', function (assert) {
     var toInsert = undefined,
         expected = undefined;
-    _testHelpers['default'].postAbstract.build(function (_ref70) {
-      var post = _ref70.post;
-      var markupSection = _ref70.markupSection;
-      var marker = _ref70.marker;
-      var markup = _ref70.markup;
+    _testHelpers['default'].postAbstract.build(function (_ref71) {
+      var post = _ref71.post;
+      var markupSection = _ref71.markupSection;
+      var marker = _ref71.marker;
+      var markup = _ref71.markup;
 
       toInsert = [marker('123', [markup('b')]), marker('456')];
       expected = post([markupSection('p', [marker('123', [markup('b')]), marker('456abc')])]);
     });
 
-    editor = buildEditorWithMobiledoc(function (_ref71) {
-      var post = _ref71.post;
-      var markupSection = _ref71.markupSection;
-      var marker = _ref71.marker;
+    editor = buildEditorWithMobiledoc(function (_ref72) {
+      var post = _ref72.post;
+      var markupSection = _ref72.markupSection;
+      var marker = _ref72.marker;
 
       return post([markupSection('p', [marker('abc')])]);
     });
@@ -13548,20 +13603,20 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
   test('#insertMarkers inserts the markers at end', function (assert) {
     var toInsert = undefined,
         expected = undefined;
-    _testHelpers['default'].postAbstract.build(function (_ref72) {
-      var post = _ref72.post;
-      var markupSection = _ref72.markupSection;
-      var marker = _ref72.marker;
-      var markup = _ref72.markup;
+    _testHelpers['default'].postAbstract.build(function (_ref73) {
+      var post = _ref73.post;
+      var markupSection = _ref73.markupSection;
+      var marker = _ref73.marker;
+      var markup = _ref73.markup;
 
       toInsert = [marker('123', [markup('b')]), marker('456')];
       expected = post([markupSection('p', [marker('abc'), marker('123', [markup('b')]), marker('456')])]);
     });
 
-    editor = buildEditorWithMobiledoc(function (_ref73) {
-      var post = _ref73.post;
-      var markupSection = _ref73.markupSection;
-      var marker = _ref73.marker;
+    editor = buildEditorWithMobiledoc(function (_ref74) {
+      var post = _ref74.post;
+      var markupSection = _ref74.markupSection;
+      var marker = _ref74.marker;
 
       return post([markupSection('p', [marker('abc')])]);
     });
@@ -13577,18 +13632,18 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
 
   test('#insertMarkers throws if the position is not markerable', function (assert) {
     var toInsert = undefined;
-    _testHelpers['default'].postAbstract.build(function (_ref74) {
-      var post = _ref74.post;
-      var markupSection = _ref74.markupSection;
-      var marker = _ref74.marker;
-      var markup = _ref74.markup;
+    _testHelpers['default'].postAbstract.build(function (_ref75) {
+      var post = _ref75.post;
+      var markupSection = _ref75.markupSection;
+      var marker = _ref75.marker;
+      var markup = _ref75.markup;
 
       toInsert = [marker('123', [markup('b')]), marker('456')];
     });
 
-    editor = buildEditorWithMobiledoc(function (_ref75) {
-      var post = _ref75.post;
-      var cardSection = _ref75.cardSection;
+    editor = buildEditorWithMobiledoc(function (_ref76) {
+      var post = _ref76.post;
+      var cardSection = _ref76.cardSection;
 
       return post([cardSection('some-card')]);
     });
@@ -13602,15 +13657,15 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
 
   test('#insertText is no-op if the position section is not markerable', function (assert) {
     var toInsert = '123';
-    var expected = _testHelpers['default'].postAbstract.build(function (_ref76) {
-      var post = _ref76.post;
-      var cardSection = _ref76.cardSection;
+    var expected = _testHelpers['default'].postAbstract.build(function (_ref77) {
+      var post = _ref77.post;
+      var cardSection = _ref77.cardSection;
 
       return post([cardSection('test-card')]);
     });
-    editor = buildEditorWithMobiledoc(function (_ref77) {
-      var post = _ref77.post;
-      var cardSection = _ref77.cardSection;
+    editor = buildEditorWithMobiledoc(function (_ref78) {
+      var post = _ref78.post;
+      var cardSection = _ref78.cardSection;
 
       return post([cardSection('test-card')]);
     });
@@ -13627,21 +13682,21 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
   test('#insertText inserts the text at start', function (assert) {
     var toInsert = undefined,
         expected = undefined;
-    _testHelpers['default'].postAbstract.build(function (_ref78) {
-      var post = _ref78.post;
-      var markupSection = _ref78.markupSection;
-      var marker = _ref78.marker;
-      var markup = _ref78.markup;
+    _testHelpers['default'].postAbstract.build(function (_ref79) {
+      var post = _ref79.post;
+      var markupSection = _ref79.markupSection;
+      var marker = _ref79.marker;
+      var markup = _ref79.markup;
 
       toInsert = '123';
       expected = post([markupSection('p', [marker('123abc', [markup('b')])])]);
     });
 
-    editor = buildEditorWithMobiledoc(function (_ref79) {
-      var post = _ref79.post;
-      var markupSection = _ref79.markupSection;
-      var marker = _ref79.marker;
-      var markup = _ref79.markup;
+    editor = buildEditorWithMobiledoc(function (_ref80) {
+      var post = _ref80.post;
+      var markupSection = _ref80.markupSection;
+      var marker = _ref80.marker;
+      var markup = _ref80.markup;
 
       return post([markupSection('p', [marker('abc', [markup('b')])])]);
     });
@@ -13658,21 +13713,21 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
   test('#insertText inserts text in the middle', function (assert) {
     var toInsert = undefined,
         expected = undefined;
-    _testHelpers['default'].postAbstract.build(function (_ref80) {
-      var post = _ref80.post;
-      var markupSection = _ref80.markupSection;
-      var marker = _ref80.marker;
-      var markup = _ref80.markup;
+    _testHelpers['default'].postAbstract.build(function (_ref81) {
+      var post = _ref81.post;
+      var markupSection = _ref81.markupSection;
+      var marker = _ref81.marker;
+      var markup = _ref81.markup;
 
       toInsert = '123';
       expected = post([markupSection('p', [marker('ab123c', [markup('b')])])]);
     });
 
-    editor = buildEditorWithMobiledoc(function (_ref81) {
-      var post = _ref81.post;
-      var markupSection = _ref81.markupSection;
-      var marker = _ref81.marker;
-      var markup = _ref81.markup;
+    editor = buildEditorWithMobiledoc(function (_ref82) {
+      var post = _ref82.post;
+      var markupSection = _ref82.markupSection;
+      var marker = _ref82.marker;
+      var markup = _ref82.markup;
 
       return post([markupSection('p', [marker('abc', [markup('b')])])]);
     });
@@ -13689,21 +13744,21 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
   test('#insertText inserts text at the end', function (assert) {
     var toInsert = undefined,
         expected = undefined;
-    _testHelpers['default'].postAbstract.build(function (_ref82) {
-      var post = _ref82.post;
-      var markupSection = _ref82.markupSection;
-      var marker = _ref82.marker;
-      var markup = _ref82.markup;
+    _testHelpers['default'].postAbstract.build(function (_ref83) {
+      var post = _ref83.post;
+      var markupSection = _ref83.markupSection;
+      var marker = _ref83.marker;
+      var markup = _ref83.markup;
 
       toInsert = '123';
       expected = post([markupSection('p', [marker('abc123', [markup('b')])])]);
     });
 
-    editor = buildEditorWithMobiledoc(function (_ref83) {
-      var post = _ref83.post;
-      var markupSection = _ref83.markupSection;
-      var marker = _ref83.marker;
-      var markup = _ref83.markup;
+    editor = buildEditorWithMobiledoc(function (_ref84) {
+      var post = _ref84.post;
+      var markupSection = _ref84.markupSection;
+      var marker = _ref84.marker;
+      var markup = _ref84.markup;
 
       return post([markupSection('p', [marker('abc', [markup('b')])])]);
     });
@@ -13718,21 +13773,21 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
   });
 
   test('#_splitListItem creates two list items', function (assert) {
-    var expected = _testHelpers['default'].postAbstract.build(function (_ref84) {
-      var post = _ref84.post;
-      var listSection = _ref84.listSection;
-      var listItem = _ref84.listItem;
-      var marker = _ref84.marker;
-      var markup = _ref84.markup;
-
-      return post([listSection('ul', [listItem([marker('abc'), marker('bo', [markup('b')])]), listItem([marker('ld', [markup('b')])])])]);
-    });
-    editor = buildEditorWithMobiledoc(function (_ref85) {
+    var expected = _testHelpers['default'].postAbstract.build(function (_ref85) {
       var post = _ref85.post;
       var listSection = _ref85.listSection;
       var listItem = _ref85.listItem;
       var marker = _ref85.marker;
       var markup = _ref85.markup;
+
+      return post([listSection('ul', [listItem([marker('abc'), marker('bo', [markup('b')])]), listItem([marker('ld', [markup('b')])])])]);
+    });
+    editor = buildEditorWithMobiledoc(function (_ref86) {
+      var post = _ref86.post;
+      var listSection = _ref86.listSection;
+      var listItem = _ref86.listItem;
+      var marker = _ref86.marker;
+      var markup = _ref86.markup;
 
       return post([listSection('ul', [listItem([marker('abc'), marker('bold', [markup('b')])])])]);
     });
@@ -13748,19 +13803,19 @@ define('tests/unit/editor/post-test', ['exports', 'mobiledoc-kit/editor/post', '
   });
 
   test('#_splitListItem when position is start creates blank list item', function (assert) {
-    var expected = _testHelpers['default'].postAbstract.build(function (_ref86) {
-      var post = _ref86.post;
-      var listSection = _ref86.listSection;
-      var listItem = _ref86.listItem;
-      var marker = _ref86.marker;
-
-      return post([listSection('ul', [listItem([marker('')]), listItem([marker('abc')])])]);
-    });
-    editor = buildEditorWithMobiledoc(function (_ref87) {
+    var expected = _testHelpers['default'].postAbstract.build(function (_ref87) {
       var post = _ref87.post;
       var listSection = _ref87.listSection;
       var listItem = _ref87.listItem;
       var marker = _ref87.marker;
+
+      return post([listSection('ul', [listItem([marker('')]), listItem([marker('abc')])])]);
+    });
+    editor = buildEditorWithMobiledoc(function (_ref88) {
+      var post = _ref88.post;
+      var listSection = _ref88.listSection;
+      var listItem = _ref88.listItem;
+      var marker = _ref88.marker;
 
       return post([listSection('ul', [listItem([marker('abc')])])]);
     });
@@ -15144,14 +15199,78 @@ define('tests/unit/models/post-test', ['exports', '../../test-helpers', 'mobiled
     assert.postIsSimilar(post, expected);
   });
 
-  test('#trimTo when range starts and ends in a list item', function (assert) {
+  test('#trimTo appends new p section when tail section is not selected and is a non-markerable section', function (assert) {
+    var cardPayload = { foo: 'bar' };
+
     var buildPost = _testHelpers['default'].postAbstract.build;
 
     var post = buildPost(function (_ref11) {
       var post = _ref11.post;
-      var listSection = _ref11.listSection;
-      var listItem = _ref11.listItem;
+      var markupSection = _ref11.markupSection;
       var marker = _ref11.marker;
+      var cardSection = _ref11.cardSection;
+
+      return post([markupSection('p', [marker('abc')]), cardSection('test-card', cardPayload)]);
+    });
+
+    var range = _mobiledocKitUtilsCursorRange['default'].create(post.sections.head, 1, // b
+    post.sections.tail, 0); // start of card
+
+    post = post.trimTo(range);
+    var expected = buildPost(function (_ref12) {
+      var post = _ref12.post;
+      var marker = _ref12.marker;
+      var markupSection = _ref12.markupSection;
+      var cardSection = _ref12.cardSection;
+
+      return post([markupSection('p', [marker('bc')]), markupSection('p', [marker('')]), cardSection('test-card', cardPayload)]);
+    });
+
+    var newSection = expected.sections.head.next;
+    assert.equal(expected.sections.length, 3);
+    assert.equal(newSection.tagName, 'p');
+    assert.equal(newSection.isBlank, true);
+  });
+
+  test('#trimTo appends new p section when tail section is not selected and is a markerable section', function (assert) {
+    var cardPayload = { foo: 'bar' };
+
+    var buildPost = _testHelpers['default'].postAbstract.build;
+
+    var post = buildPost(function (_ref13) {
+      var post = _ref13.post;
+      var markupSection = _ref13.markupSection;
+      var marker = _ref13.marker;
+
+      return post([markupSection('p', [marker('abc')]), markupSection('p', [marker('123')])]);
+    });
+
+    var range = _mobiledocKitUtilsCursorRange['default'].create(post.sections.head, 1, // b
+    post.sections.tail, 0); // start of 123
+
+    post = post.trimTo(range);
+    var expected = buildPost(function (_ref14) {
+      var post = _ref14.post;
+      var marker = _ref14.marker;
+      var markupSection = _ref14.markupSection;
+
+      return post([markupSection('p', [marker('bc')]), markupSection('p', [marker('')]), markupSection('p', [marker('123')])]);
+    });
+
+    var newSection = expected.sections.head.next;
+    assert.equal(expected.sections.length, 3);
+    assert.equal(newSection.tagName, 'p');
+    assert.equal(newSection.isBlank, true);
+  });
+
+  test('#trimTo when range starts and ends in a list item', function (assert) {
+    var buildPost = _testHelpers['default'].postAbstract.build;
+
+    var post = buildPost(function (_ref15) {
+      var post = _ref15.post;
+      var listSection = _ref15.listSection;
+      var listItem = _ref15.listItem;
+      var marker = _ref15.marker;
 
       return post([listSection('ul', [listItem([marker('abc')])])]);
     });
@@ -15159,11 +15278,11 @@ define('tests/unit/models/post-test', ['exports', '../../test-helpers', 'mobiled
     var range = _mobiledocKitUtilsCursorRange['default'].create(post.sections.head.items.head, 0, post.sections.head.items.head, 'ab'.length);
 
     post = post.trimTo(range);
-    var expected = buildPost(function (_ref12) {
-      var post = _ref12.post;
-      var listSection = _ref12.listSection;
-      var listItem = _ref12.listItem;
-      var marker = _ref12.marker;
+    var expected = buildPost(function (_ref16) {
+      var post = _ref16.post;
+      var listSection = _ref16.listSection;
+      var listItem = _ref16.listItem;
+      var marker = _ref16.marker;
 
       return post([listSection('ul', [listItem([marker('ab')])])]);
     });
@@ -15174,11 +15293,11 @@ define('tests/unit/models/post-test', ['exports', '../../test-helpers', 'mobiled
   test('#trimTo when range contains multiple list items', function (assert) {
     var buildPost = _testHelpers['default'].postAbstract.build;
 
-    var post = buildPost(function (_ref13) {
-      var post = _ref13.post;
-      var listSection = _ref13.listSection;
-      var listItem = _ref13.listItem;
-      var marker = _ref13.marker;
+    var post = buildPost(function (_ref17) {
+      var post = _ref17.post;
+      var listSection = _ref17.listSection;
+      var listItem = _ref17.listItem;
+      var marker = _ref17.marker;
 
       return post([listSection('ul', [listItem([marker('abc')]), listItem([marker('def')]), listItem([marker('ghi')])])]);
     });
@@ -15186,11 +15305,11 @@ define('tests/unit/models/post-test', ['exports', '../../test-helpers', 'mobiled
     var range = _mobiledocKitUtilsCursorRange['default'].create(post.sections.head.items.head, 'ab'.length, post.sections.head.items.tail, 'gh'.length);
 
     post = post.trimTo(range);
-    var expected = buildPost(function (_ref14) {
-      var post = _ref14.post;
-      var listSection = _ref14.listSection;
-      var listItem = _ref14.listItem;
-      var marker = _ref14.marker;
+    var expected = buildPost(function (_ref18) {
+      var post = _ref18.post;
+      var listSection = _ref18.listSection;
+      var listItem = _ref18.listItem;
+      var marker = _ref18.marker;
 
       return post([listSection('ul', [listItem([marker('c')]), listItem([marker('def')]), listItem([marker('gh')])])]);
     });
@@ -15201,12 +15320,12 @@ define('tests/unit/models/post-test', ['exports', '../../test-helpers', 'mobiled
   test('#trimTo when range contains multiple list items and more sections', function (assert) {
     var buildPost = _testHelpers['default'].postAbstract.build;
 
-    var post = buildPost(function (_ref15) {
-      var post = _ref15.post;
-      var listSection = _ref15.listSection;
-      var listItem = _ref15.listItem;
-      var markupSection = _ref15.markupSection;
-      var marker = _ref15.marker;
+    var post = buildPost(function (_ref19) {
+      var post = _ref19.post;
+      var listSection = _ref19.listSection;
+      var listItem = _ref19.listItem;
+      var markupSection = _ref19.markupSection;
+      var marker = _ref19.marker;
 
       return post([listSection('ul', [listItem([marker('abc')]), listItem([marker('def')]), listItem([marker('ghi')])]), markupSection('p', [marker('123')])]);
     });
@@ -15214,12 +15333,12 @@ define('tests/unit/models/post-test', ['exports', '../../test-helpers', 'mobiled
     var range = _mobiledocKitUtilsCursorRange['default'].create(post.sections.head.items.head, 'ab'.length, post.sections.tail, '12'.length);
 
     post = post.trimTo(range);
-    var expected = buildPost(function (_ref16) {
-      var post = _ref16.post;
-      var listSection = _ref16.listSection;
-      var listItem = _ref16.listItem;
-      var markupSection = _ref16.markupSection;
-      var marker = _ref16.marker;
+    var expected = buildPost(function (_ref20) {
+      var post = _ref20.post;
+      var listSection = _ref20.listSection;
+      var listItem = _ref20.listItem;
+      var markupSection = _ref20.markupSection;
+      var marker = _ref20.marker;
 
       return post([listSection('ul', [listItem([marker('c')]), listItem([marker('def')]), listItem([marker('ghi')])]), markupSection('p', [marker('12')])]);
     });
@@ -15228,10 +15347,10 @@ define('tests/unit/models/post-test', ['exports', '../../test-helpers', 'mobiled
   });
 
   test('#headPosition and #tailPosition returns head and tail', function (assert) {
-    var post = _testHelpers['default'].postAbstract.build(function (_ref17) {
-      var post = _ref17.post;
-      var markupSection = _ref17.markupSection;
-      var marker = _ref17.marker;
+    var post = _testHelpers['default'].postAbstract.build(function (_ref21) {
+      var post = _ref21.post;
+      var markupSection = _ref21.markupSection;
+      var marker = _ref21.marker;
 
       return post([markupSection('p', [marker('abc')]), markupSection('p', [marker('123')])]);
     });
@@ -15244,8 +15363,8 @@ define('tests/unit/models/post-test', ['exports', '../../test-helpers', 'mobiled
   });
 
   test('#headPosition and #tailPosition when post is blank return blank', function (assert) {
-    var post = _testHelpers['default'].postAbstract.build(function (_ref18) {
-      var post = _ref18.post;
+    var post = _testHelpers['default'].postAbstract.build(function (_ref22) {
+      var post = _ref22.post;
 
       return post();
     });
@@ -15258,11 +15377,11 @@ define('tests/unit/models/post-test', ['exports', '../../test-helpers', 'mobiled
   });
 
   test('#hasContent gives correct value', function (assert) {
-    var expectations = _testHelpers['default'].postAbstract.build(function (_ref19) {
-      var post = _ref19.post;
-      var markupSection = _ref19.markupSection;
-      var imageSection = _ref19.imageSection;
-      var marker = _ref19.marker;
+    var expectations = _testHelpers['default'].postAbstract.build(function (_ref23) {
+      var post = _ref23.post;
+      var markupSection = _ref23.markupSection;
+      var imageSection = _ref23.imageSection;
+      var marker = _ref23.marker;
 
       return {
         hasNoContent: [{
@@ -15288,15 +15407,15 @@ define('tests/unit/models/post-test', ['exports', '../../test-helpers', 'mobiled
       };
     });
 
-    expectations.hasNoContent.forEach(function (_ref20) {
-      var message = _ref20.message;
-      var post = _ref20.post;
+    expectations.hasNoContent.forEach(function (_ref24) {
+      var message = _ref24.message;
+      var post = _ref24.post;
 
       assert.ok(!post.hasContent, message + ' !hasContent');
     });
-    expectations.hasContent.forEach(function (_ref21) {
-      var message = _ref21.message;
-      var post = _ref21.post;
+    expectations.hasContent.forEach(function (_ref25) {
+      var message = _ref25.message;
+      var post = _ref25.post;
 
       assert.ok(post.hasContent, message + ' hasContent');
     });
@@ -17000,6 +17119,54 @@ define('tests/unit/parsers/section-test', ['exports', 'mobiledoc-kit/models/post
     assert.equal(h2.tagName, 'h2');
   });
 
+  // https://github.com/bustle/mobiledoc-kit/issues/714
+  test('#parse handles list items following a markup-section breakout', function (assert) {
+    var container = buildDOM('\n    <ul><li>One</li><li><h2>Two</h2></li><li>Three</li><li>Four</li></ul>\n  ');
+
+    var element = container.firstChild;
+    parser = new _mobiledocKitParsersSection['default'](builder);
+    var sections = parser.parse(element);
+
+    assert.equal(sections.length, 3, '3 sections');
+
+    assert.equal(sections[0].type, 'list-section');
+    assert.equal(sections[0].items.length, 1);
+    assert.equal(sections[0].items.objectAt(0).text, 'One');
+
+    assert.equal(sections[1].type, 'markup-section');
+    assert.equal(sections[1].tagName, 'h2');
+    assert.equal(sections[1].text, 'Two');
+
+    assert.equal(sections[2].type, 'list-section');
+    assert.equal(sections[2].items.length, 2);
+    assert.equal(sections[2].items.objectAt(0).text, 'Three');
+    assert.equal(sections[2].items.objectAt(1).text, 'Four');
+  });
+
+  // https://github.com/bustle/mobiledoc-kit/issues/714
+  test('#parse handles "invalid" non-li elems inside lists', function (assert) {
+    var container = buildDOM('\n    <ul><li>One</li><h2>Two</h2><li>Three</li><li>Four</li></ul>\n  ');
+
+    var element = container.firstChild;
+    parser = new _mobiledocKitParsersSection['default'](builder);
+    var sections = parser.parse(element);
+
+    assert.equal(sections.length, 3, '3 sections');
+
+    assert.equal(sections[0].type, 'list-section');
+    assert.equal(sections[0].items.length, 1);
+    assert.equal(sections[0].items.objectAt(0).text, 'One');
+
+    assert.equal(sections[1].type, 'markup-section');
+    assert.equal(sections[1].tagName, 'h2');
+    assert.equal(sections[1].text, 'Two');
+
+    assert.equal(sections[2].type, 'list-section');
+    assert.equal(sections[2].items.length, 2);
+    assert.equal(sections[2].items.objectAt(0).text, 'Three');
+    assert.equal(sections[2].items.objectAt(1).text, 'Four');
+  });
+
   // see https://github.com/bustle/mobiledoc-kit/issues/656
   test('#parse handles list following node handled by parserPlugin', function (assert) {
     var container = buildDOM('\n    <div><img src="https://placehold.it/100x100"><ul><li>LI One</li></ul></div>\n  ');
@@ -17066,6 +17233,14 @@ define('tests/unit/parsers/section-test', ['exports', 'mobiledoc-kit/models/post
     assert.equal(list.type, 'list-section');
     assert.equal(list.items.length, 1, '1 list item');
     assert.equal(list.items.objectAt(0).text, 'One');
+  });
+
+  test('#parse handles insignificant whitespace around newlines', function (assert) {
+    var container = buildDOM('<p>One \n Two</p>');
+    parser = new _mobiledocKitParsersSection['default'](builder);
+    var sections = parser.parse(container.firstChild);
+
+    assert.equal(sections[0].text, 'One Two');
   });
 
   test('#parse avoids empty paragraph around wrapped list', function (assert) {
@@ -17216,14 +17391,39 @@ define('tests/unit/parsers/section-test', ['exports', 'mobiledoc-kit/models/post
     assert.equal(section.markers.length, 1, 'only 1 marker');
   });
 
+  test('#parse allows top-level Comment nodes to be parsed by parser plugins', function (assert) {
+    var element = buildDOM('<!--parse me-->').firstChild;
+    var plugins = [function (element, builder, _ref4) {
+      var addMarkerable = _ref4.addMarkerable;
+
+      if (element.nodeType !== 8 && element.nodeValue !== 'parse me') {
+        return;
+      }
+      var marker = builder.createMarker('oh my');
+      addMarkerable(marker);
+    }];
+
+    parser = new _mobiledocKitParsersSection['default'](builder, { plugins: plugins });
+    var sections = parser.parse(element);
+
+    assert.equal(sections.length, 1);
+
+    var _sections3 = _slicedToArray(sections, 1);
+
+    var section = _sections3[0];
+
+    assert.equal(section.text, 'oh my', 'parses comment with parser plugin');
+    assert.equal(section.markers.length, 1, 'only 1 marker');
+  });
+
   // https://github.com/bustle/mobiledoc-kit/issues/683
   test('#parse handles card-creating element after plain text', function (assert) {
     var container = buildDOM('\n    <div><p>Before<a href="https:/example.com/image.png"><img src="https://example.com/image.png"></a></p><p>After</p></div>\n  ');
 
     var element = container.firstChild;
-    var plugins = [function (element, builder, _ref4) {
-      var addSection = _ref4.addSection;
-      var nodeFinished = _ref4.nodeFinished;
+    var plugins = [function (element, builder, _ref5) {
+      var addSection = _ref5.addSection;
+      var nodeFinished = _ref5.nodeFinished;
 
       if (element.tagName !== 'IMG') {
         return;
@@ -17240,6 +17440,46 @@ define('tests/unit/parsers/section-test', ['exports', 'mobiledoc-kit/models/post
     assert.equal(sections[0].text.trim(), 'Before');
     assert.equal(sections[1].type, 'card-section');
     assert.equal(sections[2].text.trim(), 'After');
+  });
+
+  test('#parse handles <p> inside <blockquote>', function (assert) {
+    var container = buildDOM('\n    <blockquote>\n      <p>One</p>\n      <p>Two</p>\n    </blockquote>\n  ');
+
+    parser = new _mobiledocKitParsersSection['default'](builder);
+    var sections = parser.parse(container.firstChild);
+
+    assert.equal(sections.length, 2, '2 sections');
+    assert.equal(sections[0].type, 'markup-section');
+    assert.equal(sections[0].tagName, 'blockquote');
+    assert.equal(sections[0].text.trim(), 'One');
+    assert.equal(sections[1].type, 'markup-section');
+    assert.equal(sections[1].tagName, 'blockquote');
+    assert.equal(sections[1].text.trim(), 'Two');
+  });
+
+  test('#parse allows top-level Comment nodes to be parsed by parser plugins', function (assert) {
+    var element = buildDOM('<!--parse me-->').firstChild;
+    var plugins = [function (element, builder, _ref6) {
+      var addMarkerable = _ref6.addMarkerable;
+
+      if (element.nodeType !== 8 && element.nodeValue !== 'parse me') {
+        return;
+      }
+      var marker = builder.createMarker('oh my');
+      addMarkerable(marker);
+    }];
+
+    parser = new _mobiledocKitParsersSection['default'](builder, { plugins: plugins });
+    var sections = parser.parse(element);
+
+    assert.equal(sections.length, 1);
+
+    var _sections4 = _slicedToArray(sections, 1);
+
+    var section = _sections4[0];
+
+    assert.equal(section.text, 'oh my', 'parses comment with parser plugin');
+    assert.equal(section.markers.length, 1, 'only 1 marker');
   });
 });
 define('tests/unit/parsers/text-test', ['exports', 'mobiledoc-kit/parsers/text', 'mobiledoc-kit/models/post-node-builder', '../../test-helpers'], function (exports, _mobiledocKitParsersText, _mobiledocKitModelsPostNodeBuilder, _testHelpers) {
@@ -18544,7 +18784,7 @@ define('tests/unit/renderers/mobiledoc/0-3-2-test', ['exports', 'mobiledoc-kit/r
       atoms: [],
       cards: [],
       markups: [['strong']],
-      sections: [[1, (0, _mobiledocKitUtilsDomUtils.normalizeTagName)('P'), [[0, [0], 1, 'Hi']], []]]
+      sections: [[1, (0, _mobiledocKitUtilsDomUtils.normalizeTagName)('P'), [[0, [0], 1, 'Hi']]]]
     });
   });
 
@@ -18564,7 +18804,7 @@ define('tests/unit/renderers/mobiledoc/0-3-2-test', ['exports', 'mobiledoc-kit/r
       atoms: [],
       cards: [],
       markups: [['strong']],
-      sections: [[1, (0, _mobiledocKitUtilsDomUtils.normalizeTagName)('P'), [[0, [0], 0, 'Hi'], [0, [], 1, ' Guy']], []]]
+      sections: [[1, (0, _mobiledocKitUtilsDomUtils.normalizeTagName)('P'), [[0, [0], 0, 'Hi'], [0, [], 1, ' Guy']]]]
     });
   });
 
@@ -18587,7 +18827,7 @@ define('tests/unit/renderers/mobiledoc/0-3-2-test', ['exports', 'mobiledoc-kit/r
       atoms: [],
       cards: [],
       markups: [['a', ['href', 'bustle.com']], ['a', ['href', 'other.com']]],
-      sections: [[1, (0, _mobiledocKitUtilsDomUtils.normalizeTagName)('P'), [[0, [0], 1, 'Hi'], [0, [1], 1, ' Guy'], [0, [0], 1, ' other guy']], []]]
+      sections: [[1, (0, _mobiledocKitUtilsDomUtils.normalizeTagName)('P'), [[0, [0], 1, 'Hi'], [0, [1], 1, ' Guy'], [0, [0], 1, ' other guy']]]]
     });
   });
 
@@ -18638,7 +18878,7 @@ define('tests/unit/renderers/mobiledoc/0-3-2-test', ['exports', 'mobiledoc-kit/r
       atoms: [['mention', '@bob', { id: 42 }]],
       cards: [],
       markups: [],
-      sections: [[1, (0, _mobiledocKitUtilsDomUtils.normalizeTagName)('P'), [[0, [], 0, 'Hi'], [1, [], 0, 0]], []]]
+      sections: [[1, (0, _mobiledocKitUtilsDomUtils.normalizeTagName)('P'), [[0, [], 0, 'Hi'], [1, [], 0, 0]]]]
     });
   });
 
@@ -18660,7 +18900,7 @@ define('tests/unit/renderers/mobiledoc/0-3-2-test', ['exports', 'mobiledoc-kit/r
       atoms: [['mention', '@bob', { id: 42 }]],
       cards: [],
       markups: [['strong']],
-      sections: [[1, (0, _mobiledocKitUtilsDomUtils.normalizeTagName)('P'), [[1, [0], 1, 0]], []]]
+      sections: [[1, (0, _mobiledocKitUtilsDomUtils.normalizeTagName)('P'), [[1, [0], 1, 0]]]]
     });
   });
 
@@ -18682,7 +18922,7 @@ define('tests/unit/renderers/mobiledoc/0-3-2-test', ['exports', 'mobiledoc-kit/r
       atoms: [['mention', '@bob', { id: 42 }]],
       cards: [],
       markups: [['strong']],
-      sections: [[1, (0, _mobiledocKitUtilsDomUtils.normalizeTagName)('P'), [[0, [0], 0, 'Hi '], [1, [], 0, 0], [0, [], 1, ' Bye']], []]]
+      sections: [[1, (0, _mobiledocKitUtilsDomUtils.normalizeTagName)('P'), [[0, [0], 0, 'Hi '], [1, [], 0, 0], [0, [], 1, ' Bye']]]]
     });
   });
 
@@ -18758,7 +18998,7 @@ define('tests/unit/renderers/mobiledoc/0-3-2-test', ['exports', 'mobiledoc-kit/r
       atoms: [],
       cards: [],
       markups: [],
-      sections: [[3, 'ul', [[[0, [], 0, 'first item']], [[0, [], 0, 'second item']]], []]]
+      sections: [[3, 'ul', [[[0, [], 0, 'first item']], [[0, [], 0, 'second item']]]]]
     });
   });
 
@@ -18776,7 +19016,7 @@ define('tests/unit/renderers/mobiledoc/0-3-2-test', ['exports', 'mobiledoc-kit/r
       atoms: [],
       cards: [],
       markups: [],
-      sections: [[1, 'aside', [[0, [], 0, 'abc']], []]]
+      sections: [[1, 'aside', [[0, [], 0, 'abc']]]]
     });
   });
 

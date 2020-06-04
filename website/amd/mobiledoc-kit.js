@@ -1814,7 +1814,7 @@ define('mobiledoc-kit/editor/editor', ['exports', 'mobiledoc-kit/views/tooltip',
             return this._parser.parse(dom);
           }
         } else {
-          return this.builder.createPost();
+          return this.builder.createPost([this.builder.createMarkupSection()]);
         }
       }
     }, {
@@ -3004,7 +3004,7 @@ define('mobiledoc-kit/editor/editor', ['exports', 'mobiledoc-kit/views/tooltip',
 
   exports['default'] = Editor;
 });
-define('mobiledoc-kit/editor/event-manager', ['exports', 'mobiledoc-kit/utils/assert', 'mobiledoc-kit/utils/parse-utils', 'mobiledoc-kit/utils/array-utils', 'mobiledoc-kit/utils/key', 'mobiledoc-kit/editor/text-input-handler', 'mobiledoc-kit/editor/selection-manager', 'mobiledoc-kit/utils/browser'], function (exports, _mobiledocKitUtilsAssert, _mobiledocKitUtilsParseUtils, _mobiledocKitUtilsArrayUtils, _mobiledocKitUtilsKey, _mobiledocKitEditorTextInputHandler, _mobiledocKitEditorSelectionManager, _mobiledocKitUtilsBrowser) {
+define('mobiledoc-kit/editor/event-manager', ['exports', 'mobiledoc-kit/utils/assert', 'mobiledoc-kit/utils/parse-utils', 'mobiledoc-kit/utils/array-utils', 'mobiledoc-kit/utils/key', 'mobiledoc-kit/editor/text-input-handler', 'mobiledoc-kit/editor/selection-manager', 'mobiledoc-kit/utils/browser', 'mobiledoc-kit/parsers/text'], function (exports, _mobiledocKitUtilsAssert, _mobiledocKitUtilsParseUtils, _mobiledocKitUtilsArrayUtils, _mobiledocKitUtilsKey, _mobiledocKitEditorTextInputHandler, _mobiledocKitEditorSelectionManager, _mobiledocKitUtilsBrowser, _mobiledocKitParsersText) {
   'use strict';
 
   var _slicedToArray = (function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i['return']) _i['return'](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError('Invalid attempt to destructure non-iterable instance'); } }; })();
@@ -3013,7 +3013,7 @@ define('mobiledoc-kit/editor/event-manager', ['exports', 'mobiledoc-kit/utils/as
 
   function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError('Cannot call a class as a function'); } }
 
-  var ELEMENT_EVENT_TYPES = ['keydown', 'keyup', 'cut', 'copy', 'paste', 'keypress', 'drop'];
+  var ELEMENT_EVENT_TYPES = ['keydown', 'keyup', 'cut', 'copy', 'paste', 'keypress', 'drop', 'compositionstart', 'compositionend'];
 
   var EventManager = (function () {
     function EventManager(editor) {
@@ -3023,6 +3023,7 @@ define('mobiledoc-kit/editor/event-manager', ['exports', 'mobiledoc-kit/utils/as
       this.logger = editor.loggerFor('event-manager');
       this._textInputHandler = new _mobiledocKitEditorTextInputHandler['default'](editor);
       this._listeners = [];
+      this._isComposing = false;
       this.modifierKeys = {
         shift: false
       };
@@ -3183,6 +3184,9 @@ define('mobiledoc-kit/editor/event-manager', ['exports', 'mobiledoc-kit/utils/as
           return;
         }
 
+        //const isImeEvent = event.keyCode === 229;
+        //if (isImeEvent) { return; }
+
         var key = _mobiledocKitUtilsKey['default'].fromEvent(event);
         if (!key.isPrintable()) {
           return;
@@ -3203,6 +3207,9 @@ define('mobiledoc-kit/editor/event-manager', ['exports', 'mobiledoc-kit/utils/as
         if (!editor.isEditable) {
           return;
         }
+        if (this._isComposing) {
+          return;
+        }
 
         var key = _mobiledocKitUtilsKey['default'].fromEvent(event);
         this._updateModifiersFromKey(key, { isDown: true });
@@ -3218,6 +3225,11 @@ define('mobiledoc-kit/editor/event-manager', ['exports', 'mobiledoc-kit/utils/as
         var range = editor.range;
 
         switch (true) {
+          // Ignore IME
+          case event.isComposing || key.isIME():
+            {
+              break;
+            }
           // FIXME This should be restricted to only card/atom boundaries
           case key.isHorizontalArrowWithoutModifiersOtherThanShift():
             {
@@ -3267,6 +3279,47 @@ define('mobiledoc-kit/editor/event-manager', ['exports', 'mobiledoc-kit/utils/as
         }
         var key = _mobiledocKitUtilsKey['default'].fromEvent(event);
         this._updateModifiersFromKey(key, { isDown: false });
+      }
+    }, {
+      key: 'compositionstart',
+      value: function compositionstart(event) {
+        event.preventDefault();
+        this._isComposing = true;
+
+        var editor = this.editor;
+
+        editor._mutationHandler.stopObserving();
+        this._selectionManager.stop();
+
+        if (editor.post.isBlank) {
+          editor._insertEmptyMarkupSectionAtCursor();
+        }
+
+        this._editorRangeOffset = editor.range.head.offset;
+      }
+    }, {
+      key: 'compositionend',
+      value: function compositionend(event) {
+        event.preventDefault();
+        this._isComposing = false;
+
+        var editor = this.editor;
+        var builder = editor.builder;
+        var plugins = editor._parserPlugins;
+
+        var parser = new _mobiledocKitParsersText['default'](builder, { plugins: plugins });
+        var post = parser.parse(event.data);
+
+        var position = editor.range.head;
+        position.offset = this._editorRangeOffset;
+
+        editor.run(function (postEditor) {
+          var nextPosition = postEditor.insertPost(position, post);
+          postEditor.setRange(nextPosition);
+        });
+
+        this.editor._mutationHandler.startObserving();
+        this._selectionManager.start();
       }
     }, {
       key: 'cut',
@@ -3775,6 +3828,17 @@ define('mobiledoc-kit/editor/post', ['exports', 'mobiledoc-kit/utils/cursor/posi
 
   function isListSectionTagName(tagName) {
     return tagName === 'ul' || tagName === 'ol';
+  }
+
+  function shrinkRange(range) {
+    var head = range.head;
+    var tail = range.tail;
+
+    if (tail.offset === 0 && head.section !== tail.section) {
+      range.tail = new _mobiledocKitUtilsCursorPosition['default'](tail.section.prev, tail.section.prev.length);
+    }
+
+    return range;
   }
 
   var CALLBACK_QUEUES = {
@@ -4679,7 +4743,7 @@ define('mobiledoc-kit/editor/post', ['exports', 'mobiledoc-kit/utils/cursor/posi
 
         var range = arguments.length <= 1 || arguments[1] === undefined ? this._range : arguments[1];
 
-        range = (0, _mobiledocKitUtilsToRange['default'])(range);
+        range = shrinkRange((0, _mobiledocKitUtilsToRange['default'])(range));
 
         sectionTagName = (0, _mobiledocKitUtilsDomUtils.normalizeTagName)(sectionTagName);
         var post = this.editor.post;
@@ -4695,6 +4759,7 @@ define('mobiledoc-kit/editor/post', ['exports', 'mobiledoc-kit/utils/cursor/posi
         var sectionTransformations = [];
         post.walkMarkerableSections(range, function (section) {
           var changedSection = _this13.changeSectionTagName(section, tagName);
+
           sectionTransformations.push({
             from: section,
             to: changedSection
@@ -8138,6 +8203,10 @@ define('mobiledoc-kit/models/post', ['exports', 'mobiledoc-kit/models/types', 'm
       value: function trimTo(range) {
         var post = this.builder.createPost();
         var builder = this.builder;
+        var head = range.head;
+        var tail = range.tail;
+
+        var tailNotSelected = tail.offset === 0 && head.section !== tail.section;
 
         var sectionParent = post,
             listParent = null;
@@ -8157,7 +8226,8 @@ define('mobiledoc-kit/models/post', ['exports', 'mobiledoc-kit/models/types', 'm
             } else {
               listParent = null;
               sectionParent = post;
-              newSection = builder.createMarkupSection(section.tagName);
+              var tagName = tailNotSelected && tail.section === section ? 'p' : section.tagName;
+              newSection = builder.createMarkupSection(tagName);
             }
 
             var currentRange = range.trimTo(section);
@@ -8165,7 +8235,8 @@ define('mobiledoc-kit/models/post', ['exports', 'mobiledoc-kit/models/types', 'm
               return newSection.markers.append(m);
             });
           } else {
-            newSection = section.clone();
+            newSection = tailNotSelected && tail.section === section ? builder.createMarkupSection('p') : section.clone();
+
             sectionParent = post;
           }
           if (sectionParent) {
@@ -9959,7 +10030,7 @@ define('mobiledoc-kit/parsers/section', ['exports', 'mobiledoc-kit/models/markup
 
   var SKIPPABLE_ELEMENT_TAG_NAMES = ['style', 'head', 'title', 'meta'].map(_mobiledocKitUtilsDomUtils.normalizeTagName);
 
-  var NEWLINES = /\n/g;
+  var NEWLINES = /\s*\n\s*/g;
   function sanitize(text) {
     return text.replace(NEWLINES, ' ');
   }
@@ -10023,7 +10094,7 @@ define('mobiledoc-kit/parsers/section', ['exports', 'mobiledoc-kit/models/markup
           addSection: function addSection(section) {
             // avoid creating empty paragraphs due to wrapper elements around
             // parser-plugin-handled elements
-            if (_this2.state.section.isMarkerable && !_this2.state.text && !_this2.state.section.text) {
+            if (_this2.state.section && _this2.state.section.isMarkerable && !_this2.state.section.text && !_this2.state.text) {
               _this2.state.section = null;
             } else {
               _this2._closeCurrentSection();
@@ -10034,6 +10105,13 @@ define('mobiledoc-kit/parsers/section', ['exports', 'mobiledoc-kit/models/markup
             var state = _this2.state;
             var section = state.section;
 
+            // if the first element doesn't create it's own state and it's plugin
+            // handler uses `addMarkerable` we won't have a section yet
+            if (!section) {
+              state.text = '';
+              state.section = _this2.builder.createMarkupSection((0, _mobiledocKitUtilsDomUtils.normalizeTagName)('p'));
+              section = state.section;
+            }
             (0, _mobiledocKitUtilsAssert['default'])('Markerables can only be appended to markup sections and list item sections', section && section.isMarkerable);
             if (state.text) {
               _this2._createMarker();
@@ -10078,6 +10156,13 @@ define('mobiledoc-kit/parsers/section', ['exports', 'mobiledoc-kit/models/markup
           var isMarkupSection = (0, _mobiledocKitUtilsArrayUtils.contains)(_mobiledocKitModelsMarkupSection.VALID_MARKUP_SECTION_TAGNAMES, tagName);
           var isNestedListSection = isListSection && this.state.section.isListItem;
           var lastSection = this.sections[this.sections.length - 1];
+
+          // lists can continue after breaking out for a markup section,
+          // in that situation, start a new list using the same list type
+          if (isListItem && this.state.section.isMarkupSection) {
+            this._closeCurrentSection();
+            this._updateStateFromElement(node.parentElement);
+          }
 
           // we can hit a list item after parsing a nested list, when that happens
           // and the lists are of different types we need to make sure we switch
@@ -10180,6 +10265,10 @@ define('mobiledoc-kit/parsers/section', ['exports', 'mobiledoc-kit/models/markup
     }, {
       key: '_updateStateFromElement',
       value: function _updateStateFromElement(element) {
+        if ((0, _mobiledocKitUtilsDomUtils.isCommentNode)(element)) {
+          return;
+        }
+
         var state = this.state;
 
         state.section = this._createSectionFromElement(element);
@@ -10295,12 +10384,19 @@ define('mobiledoc-kit/parsers/section', ['exports', 'mobiledoc-kit/models/markup
         var sectionType = undefined,
             tagName = undefined,
             inferredTagName = false;
+
         if ((0, _mobiledocKitUtilsDomUtils.isTextNode)(element)) {
           tagName = _mobiledocKitModelsMarkupSection.DEFAULT_TAG_NAME;
           sectionType = _mobiledocKitModelsTypes.MARKUP_SECTION_TYPE;
           inferredTagName = true;
         } else {
           tagName = (0, _mobiledocKitUtilsDomUtils.normalizeTagName)(element.tagName);
+
+          // blockquote>p is valid html and should be treated as a blockquote section
+          // rather than a plain markup section
+          if (tagName === 'p' && element.parentElement && (0, _mobiledocKitUtilsDomUtils.normalizeTagName)(element.parentElement.tagName) === 'blockquote') {
+            tagName = 'blockquote';
+          }
 
           if ((0, _mobiledocKitUtilsArrayUtils.contains)(_mobiledocKitModelsListSection.VALID_LIST_SECTION_TAGNAMES, tagName)) {
             sectionType = _mobiledocKitModelsTypes.LIST_SECTION_TYPE;
@@ -10320,6 +10416,10 @@ define('mobiledoc-kit/parsers/section', ['exports', 'mobiledoc-kit/models/markup
     }, {
       key: '_createSectionFromElement',
       value: function _createSectionFromElement(element) {
+        if ((0, _mobiledocKitUtilsDomUtils.isCommentNode)(element)) {
+          return;
+        }
+
         var builder = this.builder;
 
         var section = undefined;
@@ -10350,7 +10450,7 @@ define('mobiledoc-kit/parsers/section', ['exports', 'mobiledoc-kit/models/markup
     }, {
       key: '_isSkippable',
       value: function _isSkippable(element) {
-        return (0, _mobiledocKitUtilsDomUtils.isCommentNode)(element) || element.nodeType === _mobiledocKitUtilsDomUtils.NODE_TYPES.ELEMENT && (0, _mobiledocKitUtilsArrayUtils.contains)(SKIPPABLE_ELEMENT_TAG_NAMES, (0, _mobiledocKitUtilsDomUtils.normalizeTagName)(element.tagName));
+        return element.nodeType === _mobiledocKitUtilsDomUtils.NODE_TYPES.ELEMENT && (0, _mobiledocKitUtilsArrayUtils.contains)(SKIPPABLE_ELEMENT_TAG_NAMES, (0, _mobiledocKitUtilsDomUtils.normalizeTagName)(element.tagName));
       }
     }]);
 
@@ -11433,11 +11533,19 @@ define('mobiledoc-kit/renderers/mobiledoc/0-3-2', ['exports', 'mobiledoc-kit/uti
     },
     openMarkupSection: function openMarkupSection(tagName, attributes) {
       this.markers = [];
-      this.sections.push([MOBILEDOC_MARKUP_SECTION_TYPE, tagName, this.markers, attributes]);
+      if (attributes && attributes.length !== 0) {
+        this.sections.push([MOBILEDOC_MARKUP_SECTION_TYPE, tagName, this.markers, attributes]);
+      } else {
+        this.sections.push([MOBILEDOC_MARKUP_SECTION_TYPE, tagName, this.markers]);
+      }
     },
     openListSection: function openListSection(tagName, attributes) {
       this.items = [];
-      this.sections.push([MOBILEDOC_LIST_SECTION_TYPE, tagName, this.items, attributes]);
+      if (attributes && attributes.length !== 0) {
+        this.sections.push([MOBILEDOC_LIST_SECTION_TYPE, tagName, this.items, attributes]);
+      } else {
+        this.sections.push([MOBILEDOC_LIST_SECTION_TYPE, tagName, this.items]);
+      }
     },
     openListItem: function openListItem() {
       this.markers = [];
@@ -14968,7 +15076,7 @@ define('mobiledoc-kit/utils/to-range', ['exports', 'mobiledoc-kit/utils/cursor/r
 define('mobiledoc-kit/version', ['exports'], function (exports) {
   'use strict';
 
-  exports['default'] = '0.12.2';
+  exports['default'] = '0.12.4-ghost.1';
 });
 define('mobiledoc-kit/views/tooltip', ['exports', 'mobiledoc-kit/views/view', 'mobiledoc-kit/utils/element-utils'], function (exports, _mobiledocKitViewsView, _mobiledocKitUtilsElementUtils) {
   'use strict';
